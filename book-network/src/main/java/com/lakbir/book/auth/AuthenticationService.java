@@ -1,11 +1,14 @@
 package com.lakbir.book.auth;
 
 import com.lakbir.book.email.EmailService;
+import com.lakbir.book.email.EmailTemplateName;
 import com.lakbir.book.entities.Token;
 import com.lakbir.book.entities.User;
 import com.lakbir.book.repositories.RoleRepository;
 import com.lakbir.book.repositories.UserRepository;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +25,10 @@ public class AuthenticationService {
     private final UserRepository userRepository;
     private final EmailService emailService;
 
-    public void register(RegistrationRequest request) {
+    @Value("${application.mailing.frontend.activation-url}")
+    private String activationUrl;
+
+    public void register(RegistrationRequest request) throws MessagingException {
         var userRole = roleRepository.findByName("USER")
                 .orElseThrow(() -> new IllegalStateException("Role USER was not initialized"));
         var user = User.builder()
@@ -38,8 +44,17 @@ public class AuthenticationService {
         sendValidationEmail(user);
     }
 
-    private void sendValidationEmail(User user) {
+    private void sendValidationEmail(User user) throws MessagingException {
         var newToken = generateAndSaveActivationToken(user);
+
+        emailService.sendEmail(
+                user.getEmail(),
+                user.fullName(),
+                EmailTemplateName.ACTIVATE_ACCOUNT,
+                activationUrl,
+                newToken,
+                "Account activation"
+        );
     }
 
     private String generateAndSaveActivationToken(User user) {
